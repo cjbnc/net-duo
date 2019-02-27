@@ -211,7 +211,7 @@ sub call {
 #
 # Returns: Reference to hash corresponding to the JSON result
 #  Throws: Net::Duo::Exception on any failure
-sub call_json {
+sub call_raw_json {
     my ($self, $method, $path, $args_ref) = @_;
 
     # Use the simpler call() method to do most of the work.  This returns the
@@ -246,12 +246,48 @@ sub call_json {
         die Net::Duo::Exception->api($data, $content);
     }
 
-    # Return the response portion of the reply.
+    # Check for the response portion of the reply.
     if (!defined($data->{response})) {
         my $error = 'no response key in JSON reply';
-        die Net::Duo::Exception->protocol($error, $content);
+        die Net::Duo::Exception->protocol( $error, $content );
     }
+
+    # Return the entire reply content
+    return $data;
+}
+
+sub call_json {
+    my ( $self, $method, $path, $args_ref ) = @_;
+    my $data = $self->call_raw_json($method, $path, $args_ref );
+
+    # Return the response portion of the reply.
     return $data->{response};
+}
+
+sub call_paged_json {
+    my ( $self, $method, $path, $args_ref ) = @_;
+
+    # Setup args for pagination
+    $args_ref->{limit}  = 300;    # API max is 300
+    $args_ref->{offset} = 0;      # start at 0, defined
+    my $result = [];              # assume paged results are an array
+
+    # Repeat json-decoded calls for each page
+    while ( defined $args_ref->{offset} ) {
+        my $data = $self->call_raw_json( $method, $path, $args_ref );
+        if (ref($data->{response}) eq 'ARRAY') {
+            push @$result, @{$data->{response}};
+        }
+        else { # not an array? return the first page immediately
+            return $data->{response};
+        }
+
+        # next page?
+        $args_ref->{offset} = $data->{metadata}->{next_offset};
+    }
+
+    # Return the assembled array by reference
+    return $result;
 }
 
 1;

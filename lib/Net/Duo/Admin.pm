@@ -160,7 +160,7 @@ sub users {
 
     # Make the Duo call and get the decoded result.
     my $args = $username ? { username => $username } : undef;
-    my $result = $self->call_json('GET', '/admin/v1/users', $args);
+    my $result = $self->call_paged_json('GET', '/admin/v1/users', $args);
 
     # Convert the returned users into Net::Duo::Admin::User objects.
     my @users;
